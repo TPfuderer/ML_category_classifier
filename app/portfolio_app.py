@@ -1,0 +1,190 @@
+# ml_category_classifier/app/portfolio_app.py
+from pathlib import Path
+import pandas as pd
+import joblib
+import streamlit as st
+
+# --------------------
+# Paths (project layout)
+# --------------------
+BASE_DIR = Path(__file__).resolve().parents[1] / "ML Models" / "ml_category_classifier"
+
+MODEL_PATH = BASE_DIR / "artifacts" / "category_classifier.pkl"
+LABEL_COLS_PATH = BASE_DIR / "artifacts" / "label_columns.pkl"
+
+# --------------------
+# Load label columns globally
+# --------------------
+LABEL_COLS = joblib.load(LABEL_COLS_PATH)
+
+SUB_COLS = [c for c in LABEL_COLS if c.startswith("sub_")]
+TAG_COLS = [c for c in LABEL_COLS if c.startswith("tag_")]
+DIET_COLS = [c for c in LABEL_COLS if c.startswith("diet_")]
+
+
+@st.cache_resource
+def load_artifacts():
+    model = joblib.load(MODEL_PATH)
+    label_cols = joblib.load(LABEL_COLS_PATH)
+
+    cat_cols = [c for c in label_cols if c.startswith("cat_")]
+    sub_cols = [c for c in label_cols if c.startswith(("sub_", "tag_", "diet_"))]
+    return model, label_cols, cat_cols, sub_cols
+
+def parse_lines_to_df(raw_text: str, max_items: int = 5) -> pd.DataFrame:
+    lines = [ln.strip() for ln in (raw_text or "").splitlines() if ln.strip()]
+    lines = lines[:max_items]
+
+    rows = []
+    for ln in lines:
+        if "|" in ln:
+            left, right = ln.split("|", 1)
+            produkt = left.strip()
+            marke = right.strip()
+        else:
+            produkt = ln.strip()
+            marke = ""
+
+        rows.append({"Produkt": produkt, "Marke": marke})
+
+    return pd.DataFrame(rows)
+
+def prettify_label(label: str) -> str:
+    s = label
+    for prefix in ("cat_", "sub_", "tag_", "diet_"):
+        if s.startswith(prefix):
+            s = s[len(prefix):]
+            break
+    s = s.replace("_", " ").strip()
+    return s[:1].upper() + s[1:]
+
+def collect_active_from_prefix(row: pd.Series, cols: list) -> list:
+    return [prettify_label(c) for c in cols if int(row.get(c, 0)) == 1]
+
+
+def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
+    model, label_cols, cat_cols, sub_cols = load_artifacts()
+
+    df = df.copy()
+    df["text"] = (
+        df["Produkt"].fillna("").astype(str).str.strip()
+        + " "
+        + df["Marke"].fillna("").astype(str).str.strip()
+    ).str.strip()
+
+    probas = model.predict_proba(df["text"])
+    proba_df = pd.DataFrame(probas, columns=label_cols)
+
+    pred_df = pd.DataFrame(0, index=df.index, columns=label_cols)
+
+    # MAIN categories top-1
+    top_cat_idx = proba_df[cat_cols].values.argmax(axis=1)
+    for i, j in enumerate(top_cat_idx):
+        pred_df.at[i, cat_cols[j]] = 1
+
+    # SUB/TAG/DIET labels: keep ALL that the model marks as relevant
+    if sub_cols:
+        for c in sub_cols:
+            # take the raw model output: if probability > 0
+            pred_df[c] = (proba_df[c] > 0).astype(int)
+
+    pred_df["main_confidence"] = proba_df[cat_cols].max(axis=1)
+    pred_df["main_category"] = proba_df[cat_cols].idxmax(axis=1)
+
+    return pd.concat([df.drop(columns=["text"]), pred_df], axis=1)
+
+
+# --------------------
+# UI – WITH PREFIX GROUPING
+# --------------------
+st.set_page_config(page_title="Product Category Classifier (Demo)", layout="wide")
+
+st.title("🧠 Product Category Classifier – Portfolio Demo")
+st.caption(
+    "Enter up to 5 products. The model predicts a main category (Top-1) "
+    "and displays all additional labels grouped by type."
+)
+
+default_text = (
+    "Buttermilch | Müllermilch\n"
+    "Butter\n"
+    "Frischkäse | Arla Buko\n"
+    "Protein Bar | IronMaxx\n"
+    "Cola Zero | Pepsi\n"
+)
+
+raw_text = st.text_area(
+    "Products (max 5 lines)",
+    value=default_text,
+    height=160,
+)
+
+col_a, col_b = st.columns([1, 2])
+
+with col_a:
+    run_btn = st.button("Classify", type="primary", use_container_width=True)
+
+with col_b:
+    st.write("")
+
+if run_btn:
+    df_in = parse_lines_to_df(raw_text, max_items=5)
+
+    if df_in.empty:
+        st.warning("Please enter at least one product.")
+        st.stop()
+
+    if not MODEL_PATH.exists() or not LABEL_COLS_PATH.exists():
+        st.error("Model artifacts not found.")
+        st.stop()
+
+    # Run prediction
+    out = run_prediction(df_in)
+
+    model, label_cols, cat_cols, sub_cols = load_artifacts()
+
+# ---------- RESULTS TABLE ADAPTED ----------
+    st.subheader("Classification Results")
+
+    results = []
+
+    for idx, row in out.iterrows():
+
+        active_subs = collect_active_from_prefix(row, SUB_COLS)
+        active_tags = collect_active_from_prefix(row, TAG_COLS)
+
+        name = f"{row['Produkt']}"
+        if row["Marke"]:
+            name += f" | {row['Marke']}"
+
+        results.append({
+            "Name": name,
+            "Main Category": prettify_label(row["main_category"]),
+            "Subcategory": ", ".join(active_subs) if active_subs else "-",
+            "Tag": ", ".join(active_tags) if active_tags else "-",
+        })
+
+    display_df = pd.DataFrame(results)
+
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    # ---------- DEBUG + OVERVIEW AS EXPANDERS ----------
+    with st.expander("Debug"):
+        st.write("Model output including all predicted label columns.")
+
+        with st.expander("Available Labels Overview"):
+            st.markdown("### All Subcategories")
+            st.write(", ".join(prettify_label(c) for c in SUB_COLS))
+
+            st.markdown("### All Tags")
+            st.write(", ".join(prettify_label(c) for c in TAG_COLS))
+
+            st.markdown("### All Diet Labels")
+            st.write(", ".join(prettify_label(c) for c in DIET_COLS))
+
+        st.markdown("### Raw Prediction Table")
+        st.dataframe(out, use_container_width=True)
+
+
+
+
