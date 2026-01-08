@@ -20,8 +20,6 @@ LABEL_COLS = joblib.load(LABEL_COLS_PATH)
 SUB_COLS = [c for c in LABEL_COLS if c.startswith("sub_")]
 TAG_COLS = [c for c in LABEL_COLS if c.startswith("tag_")]
 DIET_COLS = [c for c in LABEL_COLS if c.startswith("diet_")]
-CAT_COLS = [c for c in LABEL_COLS if c.startswith("cat_")]
-
 
 @st.cache_resource
 def load_artifacts():
@@ -63,8 +61,11 @@ def collect_active_from_prefix(row: pd.Series, cols: list) -> list:
     return [prettify_label(c) for c in cols if int(row.get(c, 0)) == 1]
 
 def collect_active_labels(row: pd.Series, cols: list) -> list:
-    return [prettify_label(col) for col in cols if int(row.get(col, 0)) == 1]
-
+    return [
+        prettify_label(col)
+        for col in cols
+        if row[col] == 1
+    ]
 
 
 def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
@@ -182,27 +183,24 @@ if run_btn:
 
     results = []
 
-    for _, row in out.iterrows():
-        active_subs = collect_active_labels(row, SUB_COLS)
-        active_tags = collect_active_labels(row, TAG_COLS)
+    for idx, row in out.iterrows():
 
-        name = row["Produkt"]
+        active_subs = collect_active_from_prefix(row, SUB_COLS)
+        active_tags = collect_active_from_prefix(row, TAG_COLS)
+
+        name = f"{row['Produkt']}"
         if row["Marke"]:
             name += f" | {row['Marke']}"
 
-        main_cat = next(
-            (c for c in CAT_COLS if int(row.get(c, 0)) == 1),
-            None
-        )
-
         results.append({
             "Name": name,
-            "Main Category": prettify_label(main_cat) if main_cat else "-",
+            "Main Category": prettify_label(row["main_category"]),
             "Subcategory": ", ".join(active_subs) if active_subs else "-",
             "Tag": ", ".join(active_tags) if active_tags else "-",
         })
 
     display_df = pd.DataFrame(results)
+
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     # ---------- DEBUG + OVERVIEW AS EXPANDERS ----------
