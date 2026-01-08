@@ -39,6 +39,9 @@ def parse_lines_to_df(raw_text: str, max_items: int = 5) -> pd.DataFrame:
 def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
     model, label_cols = load_artifacts()
 
+    CAT_COLS = [c for c in label_cols if c.startswith("cat_")]
+    SUB_COLS = [c for c in label_cols if c.startswith(("sub_", "tag_", "diet_"))]
+
     df = df.copy()
     df["text"] = (
         df["Produkt"].fillna("").astype(str).str.strip()
@@ -46,29 +49,29 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
         + df["Marke"].fillna("").astype(str).str.strip()
     ).str.strip()
 
-    # EXACT inference logic (same as classify_csv.py)
+    # --- Predict probabilities ---
     probas = model.predict_proba(df["text"])
     proba_df = pd.DataFrame(probas, columns=label_cols, index=df.index)
 
-    # build binary output exactly like your pipeline
-    out = pd.DataFrame(0, index=df.index, columns=label_cols)
+    # --- Build prediction table ---
+    pred_df = pd.DataFrame(0, index=df.index, columns=label_cols)
 
-    CAT_COLS = [c for c in label_cols if c.startswith("cat_")]
-    EXTRA_COLS = [c for c in label_cols if c.startswith(("sub_", "tag_", "diet_"))]
-
-    # Main category: Top-1
+    # 1️⃣ MAIN CATEGORY → TOP-1
     top_cat_idx = proba_df[CAT_COLS].values.argmax(axis=1)
     for i, j in enumerate(top_cat_idx):
-        out.at[i, CAT_COLS[j]] = 1
+        pred_df.at[i, CAT_COLS[j]] = 1
 
-    # Extra labels: keep ALL probabilities > 0 (same as classify_csv.py)
-    for c in EXTRA_COLS:
-        out[c] = (proba_df[c] > 0).astype(int)
+    # 2️⃣ SUB / TAG / DIET → THRESHOLD (EXACT MATCH)
+    SUB_THRESHOLD = 0.25
+    if SUB_COLS:
+        pred_df[SUB_COLS] = (proba_df[SUB_COLS] >= SUB_THRESHOLD).astype(int)
 
-    out["main_confidence"] = proba_df[CAT_COLS].max(axis=1)
+    # 3️⃣ Confidence
+    pred_df["main_confidence"] = proba_df[CAT_COLS].max(axis=1)
 
-    out = pd.concat([df[["Produkt", "Marke"]], out], axis=1)
+    out = pd.concat([df.drop(columns=["text"]), pred_df], axis=1)
     return out
+
 
 
 # --------------------
