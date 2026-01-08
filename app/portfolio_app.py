@@ -63,7 +63,7 @@ def collect_active_from_prefix(row: pd.Series, cols: list) -> list:
 
 
 def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
-    model, label_cols, cat_cols, extra_cols = load_artifacts()
+    model, label_cols, cat_cols, _ = load_artifacts()
 
     df = df.copy()
     df["text"] = (
@@ -72,25 +72,33 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
         + df["Marke"].fillna("").astype(str).str.strip()
     ).str.strip()
 
-    # --------------------
-    # MAIN CATEGORY (Top-1 via probabilities)
-    # --------------------
     probas = model.predict_proba(df["text"])
     proba_df = pd.DataFrame(probas, columns=label_cols)
 
+    # ----- MAIN CATEGORY (Top-1) -----
     df["main_category"] = proba_df[cat_cols].idxmax(axis=1)
     df["main_confidence"] = proba_df[cat_cols].max(axis=1)
 
-    # --------------------
-    # SUB / TAG / DIET (REAL multi-label prediction)
-    # --------------------
-    binary_preds = model.predict(df["text"])
-    binary_df = pd.DataFrame(binary_preds, columns=label_cols)
+    # ----- SUB / TAG via Top-K (NO threshold) -----
+    K_SUB = 3
+    K_TAG = 2
 
-    # merge binary predictions
-    out = pd.concat([df.drop(columns=["text"]), binary_df], axis=1)
+    df["active_subcategories"] = proba_df[SUB_COLS].apply(
+        lambda r: ", ".join(
+            prettify_label(c) for c in r.nlargest(K_SUB).index
+        ),
+        axis=1
+    )
 
-    return out
+    df["active_tags"] = proba_df[TAG_COLS].apply(
+        lambda r: ", ".join(
+            prettify_label(c) for c in r.nlargest(K_TAG).index
+        ),
+        axis=1
+    )
+
+    return df.drop(columns=["text"])
+
 
 
 
