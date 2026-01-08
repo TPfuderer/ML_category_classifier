@@ -113,20 +113,19 @@ with st.expander("ℹ️ How the model was built & trained"):
     trained on real-world supermarket data.
 
     **Data source**
-    - Product data was extracted from weekly supermarket flyers (e.g. Rewe, Kaufland, Aldi, Netto).
-    - Flyers were automatically scraped and processed using OCR to extract product names and brands.
-    - This resulted in thousands of raw product entries reflecting real retail language.
+    - Product data was extracted from weekly supermarket flyers and retailer web-scarping (e.g. Rewe, Kaufland, Aldi).
+    - This resulted in thousands of raw product entries reflecting real retail product environment.
 
     **Labeling process**
     - Initial labels (main category, subcategories, tags, dietary labels) were created using
       a semi-automated pipeline.
-    - ChatGPT was used to assist with labeling consistency and scalability
+    - ChatGPT API was used to assist for labeling. 
       (e.g. assigning categories like *dairy*, *snacks*, *high-protein*, *vegan*).
-    - All labels were stored explicitly and reused for supervised training.
+    - All labels were used for supervised training.
 
     **Model architecture**
     - Text input is built from: `Product name + Brand`.
-    - Features are generated using TF-IDF vectorization.
+    - Features are generated using TF-IDF vectorization + logistic regression. 
     - A multi-label classifier was trained to predict:
         • one **main category** (Top-1 selection)
         • multiple **subcategories**
