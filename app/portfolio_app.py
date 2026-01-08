@@ -63,7 +63,7 @@ def collect_active_from_prefix(row: pd.Series, cols: list) -> list:
 
 
 def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
-    model, label_cols, cat_cols, sub_cols = load_artifacts()
+    model, label_cols, cat_cols, extra_cols = load_artifacts()
 
     df = df.copy()
     df["text"] = (
@@ -72,26 +72,26 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
         + df["Marke"].fillna("").astype(str).str.strip()
     ).str.strip()
 
+    # --------------------
+    # MAIN CATEGORY (Top-1 via probabilities)
+    # --------------------
     probas = model.predict_proba(df["text"])
     proba_df = pd.DataFrame(probas, columns=label_cols)
 
-    pred_df = pd.DataFrame(0, index=df.index, columns=label_cols)
+    df["main_category"] = proba_df[cat_cols].idxmax(axis=1)
+    df["main_confidence"] = proba_df[cat_cols].max(axis=1)
 
-    # MAIN categories top-1
-    top_cat_idx = proba_df[cat_cols].values.argmax(axis=1)
-    for i, j in enumerate(top_cat_idx):
-        pred_df.at[i, cat_cols[j]] = 1
+    # --------------------
+    # SUB / TAG / DIET (REAL multi-label prediction)
+    # --------------------
+    binary_preds = model.predict(df["text"])
+    binary_df = pd.DataFrame(binary_preds, columns=label_cols)
 
-    # SUB/TAG/DIET labels: keep ALL that the model marks as relevant
-    if sub_cols:
-        for c in sub_cols:
-            # take the raw model output: if probability > 0
-            pred_df[c] = (proba_df[c] > 0).astype(int)
+    # merge binary predictions
+    out = pd.concat([df.drop(columns=["text"]), binary_df], axis=1)
 
-    pred_df["main_confidence"] = proba_df[cat_cols].max(axis=1)
-    pred_df["main_category"] = proba_df[cat_cols].idxmax(axis=1)
+    return out
 
-    return pd.concat([df.drop(columns=["text"]), pred_df], axis=1)
 
 
 # --------------------
