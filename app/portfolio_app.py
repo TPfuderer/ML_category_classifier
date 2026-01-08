@@ -105,6 +105,48 @@ st.caption(
     "and displays all additional labels grouped by type."
 )
 
+with st.expander("ℹ️ How the model was built & trained"):
+    st.write("""
+    **Overview**
+
+    This application demonstrates a multi-label product classification model
+    trained on real-world supermarket data.
+
+    **Data source**
+    - Product data was extracted from weekly supermarket flyers (e.g. Rewe, Kaufland, Aldi, Netto).
+    - Flyers were automatically scraped and processed using OCR to extract product names and brands.
+    - This resulted in thousands of raw product entries reflecting real retail language.
+
+    **Labeling process**
+    - Initial labels (main category, subcategories, tags, dietary labels) were created using
+      a semi-automated pipeline.
+    - ChatGPT was used to assist with labeling consistency and scalability
+      (e.g. assigning categories like *dairy*, *snacks*, *high-protein*, *vegan*).
+    - All labels were stored explicitly and reused for supervised training.
+
+    **Model architecture**
+    - Text input is built from: `Product name + Brand`.
+    - Features are generated using TF-IDF vectorization.
+    - A multi-label classifier was trained to predict:
+        • one **main category** (Top-1 selection)
+        • multiple **subcategories**
+        • multiple **tags** (e.g. protein-related, processing level)
+        • optional **diet labels** (e.g. vegan, lactose-free)
+
+    **Prediction logic**
+    - Main category: selected as the class with the highest predicted probability.
+    - Subcategories and tags: predicted via the model's multi-label output.
+    - No hard thresholds are used in the UI — only labels explicitly predicted as active are shown.
+
+    **Purpose**
+    - This project focuses on building a realistic, production-oriented NLP pipeline:
+        • noisy real-world data
+        • scalable labeling
+        • explainable predictions
+        • deployment as an interactive web app
+    """)
+
+
 default_text = (
     "Buttermilch | Müllermilch\n"
     "Butter\n"
