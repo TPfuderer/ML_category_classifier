@@ -62,7 +62,7 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
         pred_df.at[i, CAT_COLS[j]] = 1
 
     # 2️⃣ SUB / TAG / DIET → THRESHOLD (EXACT MATCH)
-    SUB_THRESHOLD = 0.15
+    SUB_THRESHOLD = 0.1
     if SUB_COLS:
         pred_df[SUB_COLS] = (proba_df[SUB_COLS] >= SUB_THRESHOLD).astype(int)
 
