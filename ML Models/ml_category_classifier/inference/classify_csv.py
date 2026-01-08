@@ -63,7 +63,7 @@ for i, j in enumerate(top_cat_idx):
 # --------------------
 # 2️⃣ SUB / TAG / DIET → THRESHOLD
 # --------------------
-SUB_THRESHOLD = 0.25  # später feinjustieren
+SUB_THRESHOLD = 0.15  # später feinjustieren
 
 if SUB_COLS:
     sub_preds = (proba_df[SUB_COLS] >= SUB_THRESHOLD).astype(int)
