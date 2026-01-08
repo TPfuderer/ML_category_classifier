@@ -20,6 +20,7 @@ LABEL_COLS = joblib.load(LABEL_COLS_PATH)
 SUB_COLS = [c for c in LABEL_COLS if c.startswith("sub_")]
 TAG_COLS = [c for c in LABEL_COLS if c.startswith("tag_")]
 DIET_COLS = [c for c in LABEL_COLS if c.startswith("diet_")]
+CAT_COLS = [c for c in LABEL_COLS if c.startswith("cat_")]
 
 
 @st.cache_resource
@@ -61,9 +62,13 @@ def prettify_label(label: str) -> str:
 def collect_active_from_prefix(row: pd.Series, cols: list) -> list:
     return [prettify_label(c) for c in cols if int(row.get(c, 0)) == 1]
 
+def collect_active_labels(row: pd.Series, cols: list) -> list:
+    return [prettify_label(col) for col in cols if int(row.get(col, 0)) == 1]
+
+
 
 def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
-    model, label_cols, cat_cols, _ = load_artifacts()
+    model, label_cols, _, _ = load_artifacts()
 
     df = df.copy()
     df["text"] = (
@@ -72,40 +77,14 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
         + df["Marke"].fillna("").astype(str).str.strip()
     ).str.strip()
 
-    # ---------- Predict probabilities ----------
-    probas = model.predict_proba(df["text"])
+    # IMPORTANT:
+    # Your model already outputs the FINAL binary table
+    preds = model.predict(df["text"])
 
-    # !!! WICHTIG: Index explizit setzen !!!
-    proba_df = pd.DataFrame(probas, columns=label_cols, index=df.index)
+    out = pd.DataFrame(preds, columns=label_cols)
+    out = pd.concat([df[["Produkt", "Marke"]], out], axis=1)
 
-    # ---------- Main category (Top-1) ----------
-    df["main_category"] = proba_df[cat_cols].idxmax(axis=1)
-    df["main_confidence"] = proba_df[cat_cols].max(axis=1)
-
-    # ---------- Subcategories & Tags (produkt-spezifisch) ----------
-    K_SUB = 3
-    K_TAG = 2
-
-    def top_k_from_row(row, cols, k):
-        return ", ".join(
-            prettify_label(c)
-            for c in row[cols].nlargest(k).index
-        )
-
-    df["Subcategory"] = proba_df.apply(
-        lambda row: top_k_from_row(row, SUB_COLS, K_SUB),
-        axis=1
-    )
-
-    df["Tag"] = proba_df.apply(
-        lambda row: top_k_from_row(row, TAG_COLS, K_TAG),
-        axis=1
-    )
-
-    return df.drop(columns=["text"])
-
-
-
+    return out
 
 
 # --------------------
@@ -203,24 +182,24 @@ if run_btn:
 
     results = []
 
-    for idx, row in out.iterrows():
+    for _, row in out.iterrows():
+        active_subs = collect_active_labels(row, SUB_COLS)
+        active_tags = collect_active_labels(row, TAG_COLS)
 
-        active_subs = collect_active_from_prefix(row, SUB_COLS)
-        active_tags = collect_active_from_prefix(row, TAG_COLS)
-
-        name = f"{row['Produkt']}"
+        name = row["Produkt"]
         if row["Marke"]:
             name += f" | {row['Marke']}"
 
         results.append({
             "Name": name,
-            "Main Category": prettify_label(row["main_category"]),
+            "Main Category": prettify_label(
+                next(c for c in CAT_COLS if row[c] == 1)
+            ),
             "Subcategory": ", ".join(active_subs) if active_subs else "-",
             "Tag": ", ".join(active_tags) if active_tags else "-",
         })
 
     display_df = pd.DataFrame(results)
-
     st.dataframe(display_df, use_container_width=True, hide_index=True)
 
     # ---------- DEBUG + OVERVIEW AS EXPANDERS ----------
