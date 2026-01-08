@@ -72,32 +72,38 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
         + df["Marke"].fillna("").astype(str).str.strip()
     ).str.strip()
 
+    # ---------- Predict probabilities ----------
     probas = model.predict_proba(df["text"])
-    proba_df = pd.DataFrame(probas, columns=label_cols)
 
-    # ----- MAIN CATEGORY (Top-1) -----
+    # !!! WICHTIG: Index explizit setzen !!!
+    proba_df = pd.DataFrame(probas, columns=label_cols, index=df.index)
+
+    # ---------- Main category (Top-1) ----------
     df["main_category"] = proba_df[cat_cols].idxmax(axis=1)
     df["main_confidence"] = proba_df[cat_cols].max(axis=1)
 
-    # ----- SUB / TAG via Top-K (NO threshold) -----
+    # ---------- Subcategories & Tags (produkt-spezifisch) ----------
     K_SUB = 3
     K_TAG = 2
 
-    df["active_subcategories"] = proba_df[SUB_COLS].apply(
-        lambda r: ", ".join(
-            prettify_label(c) for c in r.nlargest(K_SUB).index
-        ),
+    def top_k_from_row(row, cols, k):
+        return ", ".join(
+            prettify_label(c)
+            for c in row[cols].nlargest(k).index
+        )
+
+    df["Subcategory"] = proba_df.apply(
+        lambda row: top_k_from_row(row, SUB_COLS, K_SUB),
         axis=1
     )
 
-    df["active_tags"] = proba_df[TAG_COLS].apply(
-        lambda r: ", ".join(
-            prettify_label(c) for c in r.nlargest(K_TAG).index
-        ),
+    df["Tag"] = proba_df.apply(
+        lambda row: top_k_from_row(row, TAG_COLS, K_TAG),
         axis=1
     )
 
     return df.drop(columns=["text"])
+
 
 
 
