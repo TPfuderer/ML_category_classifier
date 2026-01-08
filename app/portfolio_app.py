@@ -73,9 +73,20 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 def build_pretty_table(out: pd.DataFrame, label_cols: list) -> pd.DataFrame:
-    CAT_COLS = [c for c in label_cols if c.startswith("cat_")]
-    SUB_COLS = [c for c in label_cols if c.startswith("sub_")]
-    TAG_COLS = [c for c in label_cols if c.startswith("tag_")]
+    CAT_COLS  = [c for c in label_cols if c.startswith("cat_")]
+    SUB_COLS  = [c for c in label_cols if c.startswith("sub_")]
+    TAG_COLS  = [c for c in label_cols if c.startswith("tag_")]
+    DIET_COLS = [c for c in label_cols if c.startswith("diet_")]
+
+    def pretty(c: str) -> str:
+        return (
+            c.replace("cat_", "")
+             .replace("sub_", "")
+             .replace("tag_", "")
+             .replace("diet_", "")
+             .replace("_", " ")
+             .title()
+        )
 
     rows = []
 
@@ -84,31 +95,22 @@ def build_pretty_table(out: pd.DataFrame, label_cols: list) -> pd.DataFrame:
         if row.get("Marke"):
             name += f" | {row['Marke']}"
 
-        main_cat = next(
-            (c.replace("cat_", "").replace("_", " ").title()
-             for c in CAT_COLS if int(row.get(c, 0)) == 1),
-            "-"
-        )
-
-        subs = [
-            c.replace("sub_", "").replace("_", " ").title()
-            for c in SUB_COLS if int(row.get(c, 0)) == 1
-        ]
-
-        tags = [
-            c.replace("tag_", "").replace("_", " ").title()
-            for c in TAG_COLS if int(row.get(c, 0)) == 1
-        ]
+        cats = [pretty(c) for c in CAT_COLS  if int(row.get(c, 0)) == 1]
+        subs = [pretty(c) for c in SUB_COLS  if int(row.get(c, 0)) == 1]
+        tags = [pretty(c) for c in TAG_COLS  if int(row.get(c, 0)) == 1]
+        diets = [pretty(c) for c in DIET_COLS if int(row.get(c, 0)) == 1]
 
         rows.append({
             "Product": name,
-            "Main Category": main_cat,
+            "Categories": ", ".join(cats) if cats else "-",
             "Subcategories": ", ".join(subs) if subs else "-",
             "Tags": ", ".join(tags) if tags else "-",
+            "Diet Labels": ", ".join(diets) if diets else "-",
             "Confidence": round(float(row.get("main_confidence", 0)), 3),
         })
 
     return pd.DataFrame(rows)
+
 
 
 # --------------------
