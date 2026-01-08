@@ -12,23 +12,11 @@ BASE_DIR = Path(__file__).resolve().parents[1] / "ML Models" / "ml_category_clas
 MODEL_PATH = BASE_DIR / "artifacts" / "category_classifier.pkl"
 LABEL_COLS_PATH = BASE_DIR / "artifacts" / "label_columns.pkl"
 
-# --------------------
-# Load label columns globally
-# --------------------
-LABEL_COLS = joblib.load(LABEL_COLS_PATH)
-
-SUB_COLS = [c for c in LABEL_COLS if c.startswith("sub_")]
-TAG_COLS = [c for c in LABEL_COLS if c.startswith("tag_")]
-DIET_COLS = [c for c in LABEL_COLS if c.startswith("diet_")]
-
 @st.cache_resource
 def load_artifacts():
     model = joblib.load(MODEL_PATH)
     label_cols = joblib.load(LABEL_COLS_PATH)
-
-    cat_cols = [c for c in label_cols if c.startswith("cat_")]
-    sub_cols = [c for c in label_cols if c.startswith(("sub_", "tag_", "diet_"))]
-    return model, label_cols, cat_cols, sub_cols
+    return model, label_cols
 
 def parse_lines_to_df(raw_text: str, max_items: int = 5) -> pd.DataFrame:
     lines = [ln.strip() for ln in (raw_text or "").splitlines() if ln.strip()]
@@ -48,20 +36,13 @@ def parse_lines_to_df(raw_text: str, max_items: int = 5) -> pd.DataFrame:
 
     return pd.DataFrame(rows)
 
-def prettify_label(label: str) -> str:
-    s = label
-    for prefix in ("cat_", "sub_", "tag_", "diet_"):
-        if s.startswith(prefix):
-            s = s[len(prefix):]
-            break
-    s = s.replace("_", " ").strip()
-    return s[:1].upper() + s[1:]
-
-def collect_active_from_prefix(row: pd.Series, cols: list) -> list:
-    return [prettify_label(c) for c in cols if int(row.get(c, 0)) == 1]
-
 def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
-    model, label_cols, cat_cols, _ = load_artifacts()
+    """
+    IMPORTANT:
+    This function returns the model output EXACTLY as produced by the classifier.
+    No post-processing, no thresholds, no UI logic.
+    """
+    model, label_cols = load_artifacts()
 
     df = df.copy()
     df["text"] = (
@@ -70,47 +51,22 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
         + df["Marke"].fillna("").astype(str).str.strip()
     ).str.strip()
 
-    # ---------- Predict probabilities ----------
-    probas = model.predict_proba(df["text"])
+    preds = model.predict(df["text"])
 
-    # !!! WICHTIG: Index explizit setzen !!!
-    proba_df = pd.DataFrame(probas, columns=label_cols, index=df.index)
+    out = pd.DataFrame(preds, columns=label_cols)
+    out = pd.concat([df[["Produkt", "Marke"]], out], axis=1)
 
-    # ---------- Main category (Top-1) ----------
-    df["main_category"] = proba_df[cat_cols].idxmax(axis=1)
-    df["main_confidence"] = proba_df[cat_cols].max(axis=1)
-
-    # ---------- Subcategories & Tags (produkt-spezifisch) ----------
-    K_SUB = 3
-    K_TAG = 2
-
-    def top_k_from_row(row, cols, k):
-        return ", ".join(
-            prettify_label(c)
-            for c in row[cols].nlargest(k).index
-        )
-
-    df["Subcategory"] = proba_df.apply(
-        lambda row: top_k_from_row(row, SUB_COLS, K_SUB),
-        axis=1
-    )
-
-    df["Tag"] = proba_df.apply(
-        lambda row: top_k_from_row(row, TAG_COLS, K_TAG),
-        axis=1
-    )
-
-    return df.drop(columns=["text"])
+    return out
 
 # --------------------
-# UI – WITH PREFIX GROUPING
+# UI
 # --------------------
 st.set_page_config(page_title="Product Category Classifier (Demo)", layout="wide")
 
 st.title("🧠 Product Category Classifier – Portfolio Demo")
 st.caption(
-    "Enter up to 5 products. The model predicts a main category (Top-1) "
-    "and displays all additional labels grouped by type."
+    "Enter up to 5 products. The model predicts product categories and tags. "
+    "The table below shows the raw model output without any UI-side manipulation."
 )
 
 with st.expander("ℹ️ How the model was built & trained"):
@@ -121,38 +77,33 @@ with st.expander("ℹ️ How the model was built & trained"):
     trained on real-world supermarket data.
 
     **Data source**
-    - Product data was extracted from weekly supermarket flyers and retailer web-scarping (e.g. Rewe, Kaufland, Aldi).
-    - This resulted in thousands of raw product entries reflecting real retail product environment.
+    - Product data was extracted from weekly supermarket flyers and retailer web-scraping
+      (e.g. Rewe, Kaufland, Aldi).
+    - This resulted in thousands of raw product entries reflecting a real retail environment.
 
     **Labeling process**
-    - Initial labels (main category, subcategories, tags, dietary labels) were created using
-      a semi-automated pipeline.
-    - ChatGPT API was used to assist for labeling. 
-      (e.g. assigning categories like *dairy*, *snacks*, *high-protein*, *vegan*).
-    - All labels were used for supervised training.
+    - Labels (main category, subcategories, tags, dietary labels) were created using a
+      semi-automated pipeline.
+    - The ChatGPT API was used to assist with scalable and consistent labeling.
+    - All labels were stored explicitly and used for supervised training.
 
     **Model architecture**
-    - Text input is built from: `Product name + Brand`.
-    - Features are generated using TF-IDF vectorization + logistic regression. 
-    - A multi-label classifier was trained to predict:
-        • one **main category** (Top-1 selection)
-        • multiple **subcategories**
-        • multiple **tags** (e.g. protein-related, processing level)
-        • optional **diet labels** (e.g. vegan, lactose-free)
+    - Text input: `Product name + Brand`
+    - Feature extraction: TF-IDF
+    - Classifier: Logistic Regression (multi-label setup)
 
     **Prediction logic**
-    - Main category: selected as the class with the highest predicted probability.
-    - Subcategories and tags: predicted via the model's multi-label output.
-    - No hard thresholds are used in the UI — only labels explicitly predicted as active are shown.
+    - The model outputs a full binary label table.
+    - This app intentionally performs no post-processing or thresholding.
+    - The UI only visualizes the raw model output.
 
     **Purpose**
-    - This project focuses on building a realistic, production-oriented NLP pipeline:
+    - Demonstrate a realistic end-to-end NLP pipeline:
         • noisy real-world data
         • scalable labeling
-        • explainable predictions
+        • transparent model output
         • deployment as an interactive web app
     """)
-
 
 default_text = (
     "Buttermilch | Müllermilch\n"
@@ -168,16 +119,8 @@ raw_text = st.text_area(
     height=160,
 )
 
-col_a, col_b = st.columns([1, 2])
-
-with col_a:
-    run_btn = st.button("Classify", type="primary", use_container_width=True)
-
-with col_b:
-    st.write("")
-
-if run_btn:
-    df_in = parse_lines_to_df(raw_text, max_items=5)
+if st.button("Classify", type="primary", use_container_width=True):
+    df_in = parse_lines_to_df(raw_text)
 
     if df_in.empty:
         st.warning("Please enter at least one product.")
@@ -187,53 +130,11 @@ if run_btn:
         st.error("Model artifacts not found.")
         st.stop()
 
-    # Run prediction
     out = run_prediction(df_in)
 
-    model, label_cols, cat_cols, sub_cols = load_artifacts()
+    st.subheader("Classification Results (Raw Model Output)")
+    st.dataframe(out, use_container_width=True)
 
-# ---------- RESULTS TABLE ADAPTED ----------
-    st.subheader("Classification Results")
-
-    results = []
-
-    for idx, row in out.iterrows():
-
-        active_subs = collect_active_from_prefix(row, SUB_COLS)
-        active_tags = collect_active_from_prefix(row, TAG_COLS)
-
-        name = f"{row['Produkt']}"
-        if row["Marke"]:
-            name += f" | {row['Marke']}"
-
-        results.append({
-            "Name": name,
-            "Main Category": prettify_label(row["main_category"]),
-            "Subcategory": ", ".join(active_subs) if active_subs else "-",
-            "Tag": ", ".join(active_tags) if active_tags else "-",
-        })
-
-    display_df = pd.DataFrame(results)
-
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
-
-    # ---------- DEBUG + OVERVIEW AS EXPANDERS ----------
     with st.expander("Debug"):
-        st.write("Model output including all predicted label columns.")
-
-        with st.expander("Available Labels Overview"):
-            st.markdown("### All Subcategories")
-            st.write(", ".join(prettify_label(c) for c in SUB_COLS))
-
-            st.markdown("### All Tags")
-            st.write(", ".join(prettify_label(c) for c in TAG_COLS))
-
-            st.markdown("### All Diet Labels")
-            st.write(", ".join(prettify_label(c) for c in DIET_COLS))
-
-        st.markdown("### Raw Prediction Table")
+        st.write("Raw prediction table exactly as returned by the model.")
         st.dataframe(out, use_container_width=True)
-
-
-
-
