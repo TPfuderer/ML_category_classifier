@@ -190,11 +190,14 @@ if run_btn:
         if row["Marke"]:
             name += f" | {row['Marke']}"
 
+        main_cat = next(
+            (c for c in CAT_COLS if int(row.get(c, 0)) == 1),
+            None
+        )
+
         results.append({
             "Name": name,
-            "Main Category": prettify_label(
-                next(c for c in CAT_COLS if row[c] == 1)
-            ),
+            "Main Category": prettify_label(main_cat) if main_cat else "-",
             "Subcategory": ", ".join(active_subs) if active_subs else "-",
             "Tag": ", ".join(active_tags) if active_tags else "-",
         })
