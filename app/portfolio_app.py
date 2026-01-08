@@ -72,6 +72,43 @@ def run_prediction(df: pd.DataFrame) -> pd.DataFrame:
     out = pd.concat([df.drop(columns=["text"]), pred_df], axis=1)
     return out
 
+def build_pretty_table(out: pd.DataFrame, label_cols: list) -> pd.DataFrame:
+    CAT_COLS = [c for c in label_cols if c.startswith("cat_")]
+    SUB_COLS = [c for c in label_cols if c.startswith("sub_")]
+    TAG_COLS = [c for c in label_cols if c.startswith("tag_")]
+
+    rows = []
+
+    for _, row in out.iterrows():
+        name = row["Produkt"]
+        if row.get("Marke"):
+            name += f" | {row['Marke']}"
+
+        main_cat = next(
+            (c.replace("cat_", "").replace("_", " ").title()
+             for c in CAT_COLS if int(row.get(c, 0)) == 1),
+            "-"
+        )
+
+        subs = [
+            c.replace("sub_", "").replace("_", " ").title()
+            for c in SUB_COLS if int(row.get(c, 0)) == 1
+        ]
+
+        tags = [
+            c.replace("tag_", "").replace("_", " ").title()
+            for c in TAG_COLS if int(row.get(c, 0)) == 1
+        ]
+
+        rows.append({
+            "Product": name,
+            "Main Category": main_cat,
+            "Subcategories": ", ".join(subs) if subs else "-",
+            "Tags": ", ".join(tags) if tags else "-",
+            "Confidence": round(float(row.get("main_confidence", 0)), 3),
+        })
+
+    return pd.DataFrame(rows)
 
 
 # --------------------
@@ -148,7 +185,12 @@ if st.button("Classify", type="primary", use_container_width=True):
 
     out = run_prediction(df_in)
 
-    st.subheader("Classification Results (Raw Model Output)")
+    st.subheader("Classification Results")
+
+    pretty_df = build_pretty_table(out, load_artifacts()[1])
+    st.dataframe(pretty_df, use_container_width=True, hide_index=True)
+
+    st.subheader("Raw Model Output")
     st.dataframe(out, use_container_width=True)
 
     with st.expander("Debug"):
