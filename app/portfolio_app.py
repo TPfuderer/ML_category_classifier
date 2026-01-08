@@ -161,12 +161,13 @@ with st.expander("ℹ️ How the model was built & trained"):
     """)
 
 default_text = (
-    "Buttermilch | Müllermilch\n"
-    "Butter\n"
-    "Frischkäse | Arla Buko\n"
-    "Protein Bar | IronMaxx\n"
-    "Cola Zero | Pepsi\n"
+    "Kulturheidelbeeren | Peruana\n"
+    "Tomato Ketchup | Heinz\n"
+    "GQB Strohschwein Frischwurst-Aufschnitt | Schiller\n"
+    "Laktosefreie H-Milch | Milsani\n"
+    "Protein-Riegel | Wellmix Sport\n"
 )
+
 
 raw_text = st.text_area(
     "Products (max 5 lines)",
