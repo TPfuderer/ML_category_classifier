@@ -162,7 +162,7 @@ with st.expander("ℹ️ How the model was built & trained"):
 
 default_text = (
     "Kulturheidelbeeren | Peruana\n"
-    "Tomato Ketchup | Heinz\n"
+    "Shampoo | Head & Shoulders\n"
     "GQB Strohschwein Frischwurst-Aufschnitt | Schiller\n"
     "Laktosefreie H-Milch | Milsani\n"
     "Protein-Riegel | Wellmix Sport\n"
