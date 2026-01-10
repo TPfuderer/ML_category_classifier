@@ -170,6 +170,7 @@ default_text = (
 
 raw_text = st.text_area(
     "Products (max 5 lines)",
+    "No | required",
     value=default_text,
     height=160,
 )
