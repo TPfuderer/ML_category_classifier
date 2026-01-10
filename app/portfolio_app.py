@@ -171,7 +171,7 @@ default_text = (
 raw_text = st.text_area(
     "Products (max 5 lines)\nNo \"|\" divider required",
     value=default_text,
-    height=200,
+    height=600,
 )
 
 if st.button("Classify", type="primary", use_container_width=True):
