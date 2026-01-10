@@ -161,13 +161,12 @@ with st.expander("ℹ️ How the model was built & trained"):
     """)
 
 default_text = (
-    "Kulturheidelbeeren | Peruana\n"
+    "Kulturheidelbeeren"
     "Shampoo | Head & Shoulders\n"
     "GQB Strohschwein Frischwurst-Aufschnitt | Schiller\n"
     "Laktosefreie H-Milch | Milsani\n"
     "Protein-Riegel | Wellmix Sport\n"
 )
-
 
 raw_text = st.text_area(
     "Products (max 5 lines)",
@@ -195,7 +194,3 @@ if st.button("Classify", type="primary", use_container_width=True):
 
     st.subheader("Raw Model Output")
     st.dataframe(out, use_container_width=True)
-
-    with st.expander("Debug"):
-        st.write("Raw prediction table exactly as returned by the model.")
-        st.dataframe(out, use_container_width=True)

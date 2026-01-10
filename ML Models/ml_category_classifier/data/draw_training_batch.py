@@ -7,7 +7,7 @@ MASTER_PATH = BASE_DIR / "data" / "master" / "master_products.csv"
 TO_TRAIN_DIR = BASE_DIR / "data" / "to_train"
 ARCHIVE_DIR = BASE_DIR / "data" / "training_archive"
 
-BATCH_SIZE = 50
+BATCH_SIZE = 1
 
 TO_TRAIN_DIR.mkdir(parents=True, exist_ok=True)
 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
