@@ -161,7 +161,7 @@ with st.expander("ℹ️ How the model was built & trained"):
     """)
 
 default_text = (
-    "Kulturheidelbeeren"
+    "Kulturheidelbeeren\n"
     "Shampoo | Head & Shoulders\n"
     "GQB Strohschwein Frischwurst-Aufschnitt | Schiller\n"
     "Laktosefreie H-Milch | Milsani\n"
