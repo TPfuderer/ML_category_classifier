@@ -169,7 +169,7 @@ default_text = (
 )
 
 raw_text = st.text_area(
-    "Products (max 5 lines)\nNo \"|\" divider required",
+    "Products (max 5 lines)\n AND No \"|\" divider required",
     value=default_text,
     height=160,
 )
