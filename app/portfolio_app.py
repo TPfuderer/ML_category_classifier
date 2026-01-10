@@ -120,8 +120,8 @@ st.set_page_config(page_title="Product Category Classifier (Demo)", layout="wide
 
 st.title("🧠 Product Category Classifier – Portfolio Demo")
 st.caption(
-    "Enter up to 5 products. The model predicts product categories and tags. "
-    "The table below shows the raw model output without any UI-side manipulation."
+    "Enter up to 5 products. The model predicts product categories and tags."
+    "Predictive accuracy is low. The more Traning data the better it gets."
 )
 
 with st.expander("ℹ️ How the model was built & trained"):
